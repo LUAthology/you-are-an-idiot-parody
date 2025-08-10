@@ -84,6 +84,7 @@ let keys = {};
 let mouse = { x: 0, y: 0 };
 let gameRunning = false;
 let spawnTimer = 0;
+const MIN_SIZE = 20;
 
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
@@ -118,13 +119,13 @@ function restartGame() {
     document.getElementById("idiotSound").currentTime = 0;
 }
 
-function spawnPopup() {
+function spawnPopup(size = 50, x = Math.random()*750, y = Math.random()*550) {
     popups.push({
-        x: Math.random()*750,
-        y: Math.random()*550,
+        x: x,
+        y: y,
         dx: (Math.random()*2-1)*2,
         dy: (Math.random()*2-1)*2,
-        size: 50
+        size: size
     });
 }
 
@@ -183,6 +184,12 @@ function loop() {
         bullets.forEach((b, bi) => {
             if (b.x > p.x && b.x < p.x+p.size && b.y > p.y && b.y < p.y+p.size) {
                 bullets.splice(bi,1);
+                // Split into 2 smaller popups if size > MIN_SIZE
+                if (p.size > MIN_SIZE) {
+                    const newSize = p.size / 1.5;
+                    spawnPopup(newSize, p.x, p.y);
+                    spawnPopup(newSize, p.x + 10, p.y + 10);
+                }
                 popups.splice(pi,1);
                 score++;
                 document.getElementById("score").innerText = score;
