@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>You Are An Idiot — Canvas Parody Game</title>
+  <style>
+    :root{ --bg:#0a0a0a; --fg:#eaeaea; --accent:#00ffc3; --danger:#ff5a5a; --muted:#9a9a9a; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;overflow:hidden}
+    #wrap{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr;}
+    header{display:flex;gap:.5rem;align-items:center;justify-content:space-between;padding:.6rem .8rem;border-bottom:1px solid #1e1e1e;background:rgba(20,20,20,.9);backdrop-filter:blur(6px)}
+    .title{display:flex;align-items:center;gap:.6rem}
+    .dot{width:.7rem;height:.7rem;border-radius:50%;background:var(--accent);box-shadow:0 0 18px var(--accent)}
+    .brand{letter-spacing:.02em;font-weight:700}
+    .sub{font-size:.8rem;color:var(--muted)}
+    .controls{display:flex;gap:.4rem;flex-wrap:wrap}
+    button{appearance:none;border:1px solid #2a2a2a;background:#121212;color:var(--fg);padding:.5rem .7rem;border-radius:14px;font-weight:700;cursor:pointer}
+    button:hover{background:#181818}
+    button:active{transform:translateY(1px)}
+    .accent{border-color:#00cfa0;box-shadow:0 0 0 2px rgba(0,255,195,.12) inset}
+    .danger{border-color:#ff5a5a}
+    #hud{position:absolute;top:64px;left:0;right:0;display:flex;justify-content:center;pointer-events:none}
+    #stats{display:grid;grid-auto-flow:column;gap:.8rem;background:rgba(12,12,12,.7);border:1px solid #242424;padding:.5rem .8rem;border-radius:14px}
+    .stat{font-variant-numeric:tabular-nums}
+    canvas{display:block;width:100%;height:100%}
+    #banner{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;background:rgba(0,0,0,.55);border:1px solid #222;padding:.35rem .6rem;border-radius:999px;font-size:.85rem;color:#d7d7d7}
+    .flash{animation:flash 220ms linear infinite}
+    @keyframes flash{50%{filter:hue-rotate(180deg) brightness(1.3)}}
+
+    /* Main Menu */
+    #menu{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(10,10,10,.94), rgba(10,10,10,.96));backdrop-filter:blur(8px);}
+    .menu-card{width:min(720px,92vw);border:1px solid #262626;border-radius:18px;background:#111;box-shadow:0 10px 40px rgba(0,0,0,.45);padding:22px}
+    .menu-header{display:flex;align-items:center;gap:.6rem;margin-bottom:14px}
+    .menu-title{font-size:clamp(22px,4vw,34px);font-weight:800;letter-spacing:.02em}
+    .menu-sub{color:#a1a1a1;margin-top:-6px}
+    .menu-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:12px}
+    .menu-row{display:flex;gap:10px;flex-wrap:wrap}
+    .menu-btn{appearance:none;border:1px solid #2a2a2a;background:#151515;color:#fff;padding:.75rem 1rem;border-radius:14px;font-weight:800;cursor:pointer}
+    .menu-btn.primary{border-color:#00cfa0;box-shadow:0 0 0 2px rgba(0,255,195,.12) inset}
+    .menu-btn:hover{background:#1a1a1a}
+    .menu-select,.menu-check{background:#0f0f0f;border:1px solid #262626;color:#eee;border-radius:10px;padding:.5rem .7rem}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0d0d0d;border:1px solid #2b2b2b;border-bottom-color:#1a1a1a;padding:.1rem .35rem;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <div class="title">
+        <div class="dot"></div>
+        <div>
+          <div class="brand">YOU ARE AN IDIOT — Parody</div>
+          <div class="sub">Harmless, self‑contained canvas game. No popups. No nav. Just chaos.</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="startBtn" class="accent">Start</button>
+        <button id="pauseBtn">Pause (P)</button>
+        <button id="resetBtn" class="danger">Reset (R)</button>
+        <button id="muteBtn">Mute (M)</button>
+      </div>
+    </header>
+
+    <div id="hud"><div id="stats">
+      <div class="stat">Score: <span id="score">0</span></div>
+      <div class="stat">Windows: <span id="count">0</span>/<span id="limit">50</span></div>
+      <div class="stat">Time: <span id="time">60.0</span>s</div>
+      <div class="stat">Chaos: <span id="chaos">1.00x</span></div>
+    </div></div>
+
+    <!-- MAIN MENU OVERLAY -->
+    <div id="menu">
+      <div class="menu-card">
+        <div class="menu-header">
+          <div class="dot" style="flex:none"></div>
+          <div>
+            <div class="menu-title">YOU ARE AN IDIOT — Arcade Parody</div>
+            <div class="menu-sub">Close the fake windows before they replicate. Survive for 60 seconds.</div>
+          </div>
+        </div>
+        <div class="menu-grid">
+          <div class="menu-row">
+            <button id="playBtn" class="menu-btn primary">▶ Play</button>
+            <button id="howBtn" class="menu-btn">How to Play</button>
+            <button id="optionsBtn" class="menu-btn">Options</button>
+          </div>
+          <div id="howPanel" class="menu-panel" style="display:none;color:#d1d1d1;line-height:1.6">
+            <div><span class="kbd">Click</span> the ✕ to close popups before they duplicate.</div>
+            <div><span class="kbd">P</span> Pause · <span class="kbd">R</span> Reset · <span class="kbd">M</span> Mute</div>
+            <div>Lose if popup count hits the limit. Win by surviving 60s.</div>
+          </div>
+          <div id="optPanel" class="menu-panel" style="display:none">
+            <div class="menu-row" style="align-items:center">
+              <label>Difficulty:&nbsp;
+                <select id="diff" class="menu-select">
+                  <option value="normal" selected>Normal</option>
+                  <option value="hard">Hard</option>
+                  <option value="insane">Insane</option>
+                </select>
+              </label>
+              <label class="menu-row" style="align-items:center;gap:.5rem">
+                <input type="checkbox" id="optMute" class="menu-check"/>
+                Start Muted
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="c"></canvas>
+    <div id="banner">Click the ✕ on windows before they replicate. Survive 60s to win.</div>
+  </div>
+
+<script>
+(() => {
+  const TWO_PI = Math.PI * 2;
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+  const state = {
+    running: false,
+    muted: false,
+    timeLeft: 60,
+    score: 0,
+    chaos: 1,
+    limit: 50,
+    popups: [],
+    lastSpawn: 0,
+    lastTime: 0,
+    flash: 0,
+    endLose: false,
+    endAlpha: 0,
+    chantTimer: null,
+  };
+
+  const ui = {
+    score: document.getElementById('score'),
+    count: document.getElementById('count'),
+    limit: document.getElementById('limit'),
+    time: document.getElementById('time'),
+    chaos: document.getElementById('chaos'),
+    start: document.getElementById('startBtn'),
+    pause: document.getElementById('pauseBtn'),
+    reset: document.getElementById('resetBtn'),
+    mute: document.getElementById('muteBtn'),
+    wrap: document.getElementById('wrap'),
+    // menu
+    menu: document.getElementById('menu'),
+    playBtn: document.getElementById('playBtn'),
+    howBtn: document.getElementById('howBtn'),
+    optionsBtn: document.getElementById('optionsBtn'),
+    howPanel: document.getElementById('howPanel'),
+    optPanel: document.getElementById('optPanel'),
+    diff: document.getElementById('diff'),
+    optMute: document.getElementById('optMute'),
+  };
+  ui.limit.textContent = state.limit;
+
+  function showMenu(){ ui.menu.style.display='flex'; }
+  function hideMenu(){ ui.menu.style.display='none'; }
+  showMenu();
+
+  function resize(){
+    const {clientWidth:w, clientHeight:h} = canvas.parentElement;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
+  addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // Audio (blips + chant)
+  let audioCtx;
+  function ensureAudio(){
+    try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+    return audioCtx;
+  }
+  function beep(freq=880, dur=0.07, type='square', vol=0.03){
+    if(state.muted) return;
+    const ac = ensureAudio(); if(!ac) return;
+    const t0 = ac.currentTime;
+    const o = ac.createOscillator();
+    const g = ac.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0+0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(ac.destination);
+    o.start();
+    o.stop(t0+dur+0.02);
+  }
+  function startChant(){
+    if(state.muted || state.chantTimer) return;
+    const ac = ensureAudio(); if(!ac) return;
+    const notes = [523.25, 392.00, 440.00]; // C5, G4, A4-ish
+    let i = 0;
+    state.chantTimer = setInterval(()=>{
+      for(let k=0;k<3;k++){
+        const f = notes[(i+k)%notes.length];
+        const t = k*0.12;
+        try{
+          const o = ac.createOscillator();
+          const g = ac.createGain();
+          o.type = 'square';
+          o.frequency.value = f;
+          g.gain.value = 0.0001;
+          g.gain.setValueAtTime(0.0001, ac.currentTime + t);
+          g.gain.exponentialRampToValueAtTime(0.05, ac.currentTime + t + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + t + 0.18);
+          o.connect(g).connect(ac.destination);
+          o.start(ac.currentTime + t);
+          o.stop(ac.currentTime + t + 0.22);
+        }catch(e){}
+      }
+      i++;
+    }, 380);
+  }
+  function stopChant(){ if(state.chantTimer){ clearInterval(state.chantTimer); state.chantTimer=null; } }
+
+  class Popup{
+    constructor(x,y,w,h){
+      this.x=x; this.y=y; this.w=w; this.h=h;
+      const sp = 60 + Math.random()*120;
+      const ang = Math.random()*TWO_PI;
+      this.vx = Math.cos(ang)*sp;
+      this.vy = Math.sin(ang)*sp;
+      this.life = 5 + Math.random()*3;
+      this.age = 0;
+      this.rot = (Math.random()-.5)*0.2;
+      this.spin = (Math.random()-.5)*0.6;
+      this.facePhase = Math.random()*TWO_PI;
+    }
+    rect(){return {x:this.x, y:this.y, w:this.w, h:this.h}}
+    update(dt){
+      this.age += dt;
+      this.x += this.vx*dt; this.y += this.vy*dt;
+      if(this.x < 0){ this.x=0; this.vx*=-1; beep(220, .05, 'sawtooth'); }
+      if(this.y < 0){ this.y=0; this.vy*=-1; beep(260, .05, 'sawtooth'); }
+      if(this.x+this.w > canvas.width){ this.x=canvas.width-this.w; this.vx*=-1; beep(220, .05, 'sawtooth'); }
+      if(this.y+this.h > canvas.height){ this.y=canvas.height-this.h; this.vy*=-1; beep(260, .05, 'sawtooth'); }
+      this.facePhase += dt*4;
+    }
+    draw(){
+      const r = this.rect();
+      ctx.save();
+      ctx.translate(r.x + r.w/2, r.y + r.h/2);
+      ctx.rotate(this.rot);
+      ctx.translate(-r.w/2, -r.h/2);
+      const radius = 10*dpr;
+      drawRoundRect(0,0,r.w,r.h,radius,'#111','#2a2a2a');
+      ctx.fillStyle = '#161616';
+      ctx.fillRect(0,0,r.w,26*dpr);
+      ctx.fillStyle = '#dddddd';
+      ctx.font = `${12*dpr}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+      ctx.textBaseline='middle';
+      ctx.fillText('you are an idiot', 8*dpr, 13*dpr);
+      const bx = r.w - 22*dpr, by=4*dpr, bw=18*dpr, bh=18*dpr;
+      ctx.fillStyle = '#2a2a2a'; ctx.fillRect(bx,by,bw,bh);
+      ctx.strokeStyle='#ff6666'; ctx.lineWidth=2*dpr; ctx.beginPath();
+      ctx.moveTo(bx+4*dpr,by+4*dpr); ctx.lineTo(bx+bw-4*dpr, by+bh-4*dpr);
+      ctx.moveTo(bx+bw-4*dpr,by+4*dpr); ctx.lineTo(bx+4*dpr, by+bh-4*dpr);
+      ctx.stroke();
+      this.closeHit = {x: r.x + (bx), y: r.y + (by), w: bw, h: bh, rot:this.rot, cx:r.x + r.w/2, cy:r.y + r.h/2};
+      ctx.translate(r.w/2, r.h/2 + 8*dpr);
+      ctx.rotate(this.spin*Math.sin(this.facePhase)*0.1);
+      drawFace(Math.min(r.w,r.h)*0.38);
+      ctx.restore();
+    }
+  }
+
+  function drawRoundRect(x,y,w,h,r,fill='#111',stroke='#2a2a2a'){
+    const rr=Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+    ctx.fillStyle=fill; ctx.fill();
+    ctx.strokeStyle=stroke; ctx.lineWidth=1*dpr; ctx.stroke();
+  }
+
+  function drawFace(R){
+    ctx.fillStyle = '#ffe100';
+    ctx.beginPath(); ctx.arc(0,0,R,0,TWO_PI); ctx.fill();
+    ctx.strokeStyle='#000'; ctx.lineWidth=2*dpr; ctx.stroke();
+    ctx.fillStyle='#000';
+    const ex = R*0.35, ey = -R*0.2, ew = R*0.12, eh = R*0.22;
+    ctx.beginPath(); ctx.ellipse(-ex,ey,ew,eh,0,0,TWO_PI); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ex,ey,ew,eh,0,0,TWO_PI); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0,R*0.1,R*0.45,0.15*Math.PI,0.85*Math.PI,false);
+    ctx.lineWidth=6*dpr; ctx.stroke();
+  }
+
+  function spawnAt(x,y, scale=1){
+    const w = 220*dpr*scale, h = 180*dpr*scale;
+    x = Math.max(0, Math.min(x, canvas.width - w));
+    y = Math.max(0, Math.min(y, canvas.height - h));
+    state.popups.push(new Popup(x,y,w,h));
+    ui.count.textContent = state.popups.length;
+  }
+  function randomSpawn(n=1){ for(let i=0;i<n;i++){ spawnAt(Math.random()*canvas.width*0.8, Math.random()*canvas.height*0.7, 0.9+Math.random()*0.4); } }
+
+  function setRunning(v){ state.running = v; if(v){ state.lastTime = performance.now(); loop(); } }
+
+  function reset(){
+    state.timeLeft = 60; state.score=0; state.chaos=1; state.popups.length=0; state.flash=0;
+    state.endLose=false; state.endAlpha=0; stopChant();
+    ui.score.textContent = '0'; ui.count.textContent='0'; ui.time.textContent='60.0'; ui.chaos.textContent='1.00x';
+    document.body.classList.remove('flash');
+  }
+
+  function banner(text){
+    const b = document.getElementById('banner');
+    b.textContent = text; b.classList.remove('hidden');
+    clearTimeout(b._t); b._t = setTimeout(()=> b.classList.add('hidden'), 3000);
+  }
+
+  function applyDifficulty(){
+    const d = ui.diff ? ui.diff.value : 'normal';
+    if(d==='normal'){ state.limit = 50; }
+    else if(d==='hard'){ state.limit = 40; }
+    else if(d==='insane'){ state.limit = 32; }
+    ui.limit.textContent = state.limit;
+  }
+
+  function gameOver(win){
+    setRunning(false);
+    if(win){
+      banner('YOU SURVIVED — NICE.');
+      stopChant();
+      setTimeout(()=>showMenu(), 500);
+    } else {
+      state.endLose = true; state.endAlpha = 0;
+      startChant();
+      banner('CHAOS OVERFLOW — YOU LOSE.');
+      setTimeout(()=>showMenu(), 1800);
+    }
+  }
+
+  function update(dt){
+    state.chaos = 1 + Math.min(2.5, state.score/200 + state.popups.length/30);
+    state.flash = Math.max(0, state.chaos - 1.8);
+    document.body.classList.toggle('flash', state.flash>0.01);
+
+    state.lastSpawn += dt;
+    const spawnEvery = Math.max(0.35, 1.3 / state.chaos);
+    if(state.lastSpawn >= spawnEvery){
+      state.lastSpawn = 0;
+      if(state.popups.length < state.limit) randomSpawn(Math.random()<0.7?1:2);
+    }
+
+    for(let i=state.popups.length-1;i>=0;i--){
+      const p = state.popups[i];
+      p.update(dt);
+      if(p.age >= p.life){
+        if(state.popups.length < state.limit){
+          spawnAt(p.x + p.w*0.1, p.y + p.h*0.1, 0.85);
+          spawnAt(p.x + p.w*0.2, p.y + p.h*0.2, 0.85);
+        }
+        p.age = 0; p.life = 3 + Math.random()*3; 
+        beep(1200, .04, 'square');
+      }
+    }
+
+    state.timeLeft -= dt;
+    if(state.timeLeft <= 0){ state.timeLeft = 0; gameOver(true); }
+  }
+
+  function draw(){
+    const t = performance.now()*0.002;
+    const bgHue = (t*20) % 360;
+    const sat = 8 + state.flash*40;
+    ctx.fillStyle = `hsl(${bgHue}, ${sat}%, ${state.flash>0? 14: 8}%)`;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.save();
+    ctx.globalAlpha = 0.08 + Math.min(0.25, state.flash*0.2);
+    ctx.fillStyle = '#fff';
+    ctx.font = `${Math.floor(40*dpr)}px Impact, Charcoal, system-ui`;
+    ctx.textAlign='center';
+    const lines = 3;
+    for(let j=0;j<lines;j++){
+      const y = (canvas.height/lines)*(j+0.5);
+      const w = canvas.width;
+      const offset = ( (performance.now()/6 + j*400) % (w+800) ) - 400;
+      ctx.fillText('YOU ARE AN IDIOT', offset, y);
+      ctx.fillText('YOU ARE AN IDIOT', offset - (w+400), y);
+    }
+    ctx.restore();
+
+    for(const p of state.popups) p.draw();
+
+    ui.score.textContent = state.score|0;
+    ui.count.textContent = state.popups.length;
+    ui.time.textContent = state.timeLeft.toFixed(1);
+    ui.chaos.textContent = state.chaos.toFixed(2)+'x';
+
+    if(state.endLose){
+      state.endAlpha = Math.min(1, state.endAlpha + 0.03);
+      ctx.save();
+      ctx.globalAlpha = 0.6 * state.endAlpha;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.restore();
+
+      const W = Math.min(canvas.width*0.8, 700*dpr);
+      const H = Math.min(canvas.height*0.6, 420*dpr);
+      const X = (canvas.width - W)/2;
+      const Y = (canvas.height - H)/2;
+
+      ctx.save();
+      ctx.globalAlpha = state.endAlpha;
+      drawRoundRect(X, Y, W, H, 16*dpr, '#111', '#ff5a5a');
+      ctx.fillStyle = '#161616';
+      ctx.fillRect(X, Y, W, 32*dpr);
+      ctx.fillStyle = '#fff';
+      ctx.font = `${14*dpr}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+      ctx.textBaseline='middle';
+      ctx.fillText('you are an idiot — GAME OVER', X+10*dpr, Y+16*dpr);
+      ctx.translate(X + W/2, Y + H/2 + 10*dpr);
+      const R = Math.min(W,H)*0.22;
+      drawFace(R);
+      ctx.fillStyle = '#fff';
+      ctx.font = `${Math.floor(32*dpr)}px Impact, Charcoal, system-ui`;
+      ctx.textAlign='center';
+      ctx.fillText('YOU ARE AN IDIOT', 0, -R - 16*dpr);
+      ctx.font = `${Math.floor(16*dpr)}px ui-sans-serif, system-ui`;
+      ctx.fillText('Press Reset (R) or Start to try again', 0, R + 36*dpr);
+      ctx.restore();
+    }
+
+    if(state.popups.length >= state.limit){ gameOver(false); }
+  }
+
+  function loop(){
+    if(!state.running) return;
+    const now = performance.now();
+    const dt = Math.min(0.033, (now - state.lastTime)/1000);
+    state.lastTime = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function normPoint(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * dpr;
+    const y = (clientY - rect.top) * dpr;
+    return {x,y};
+  }
+
+  function hitClose(px,py,pop){
+    if(!pop.closeHit) return false;
+    const {x,y,w,h,rot,cx,cy} = pop.closeHit;
+    const s = Math.sin(rot), c = Math.cos(rot);
+    const dx = px - cx, dy = py - cy;
+    const rx =  c*dx + s*dy + (cx - (pop.x + pop.w/2));
+    const ry = -s*dx + c*dy + (cy - (pop.y + pop.h/2));
+    const localX = (pop.w/2) + rx;
+    const localY = (pop.h/2) + ry;
+    const lx = x - pop.x, ly = y - pop.y;
+    return (localX >= lx && localX <= lx+w && localY >= ly && localY <= ly+h);
+  }
+
+  function closeAtPoint(px,py){
+    for(let i=state.popups.length-1;i>=0;i--){
+      const p = state.popups[i];
+      if(hitClose(px,py,p)){
+        state.popups.splice(i,1);
+        ui.count.textContent = state.popups.length;
+        state.score += Math.ceil(5*state.chaos);
+        beep(880, .06, 'triangle');
+        return true;
+      }
+    }
+    state.score = Math.max(0, state.score - 2);
+    beep(110, .04, 'square');
+    return false;
+  }
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    const {x,y} = normPoint(e.clientX, e.clientY);
+    closeAtPoint(x,y);
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    const k = e.key.toLowerCase();
+    if(k==='p'){ if(!state.running) return; state.running=false; banner('Paused. Press Start or P to resume.'); }
+    if(k==='r'){ reset(); banner('Reset.'); if(!state.running) draw(); }
+    if(k==='m'){ state.muted=!state.muted; ui.mute.textContent = state.muted? 'Unmute (M)' : 'Mute (M)'; }
+  });
+
+  ui.start.addEventListener('click', ()=>{
+    hideMenu();
+    if(!state.running && state.timeLeft<=0) reset();
+    if(!state.running){
+      state.muted = !!ui.optMute?.checked;
+      ui.mute.textContent = state.muted? 'Unmute (M)' : 'Mute (M)';
+      applyDifficulty();
+      state.lastTime = performance.now(); setRunning(true);
+      if(state.popups.length===0) randomSpawn(3);
+    }
+  });
+  ui.pause.addEventListener('click', ()=>{ if(!state.running) return; state.running=false; banner('Paused. Press Start or P to resume.'); });
+  ui.reset.addEventListener('click', ()=>{ reset(); banner('Reset.'); if(!state.running) draw(); });
+  ui.mute.addEventListener('click', ()=>{ state.muted=!state.muted; ui.mute.textContent = state.muted? 'Unmute (M)' : 'Mute (M)'; });
+
+  // Menu
+  ui.playBtn.addEventListener('click', ()=>{ hideMenu(); reset(); applyDifficulty(); setRunning(true); if(state.popups.length===0) randomSpawn(3); });
+  ui.howBtn.addEventListener('click', ()=>{ ui.howPanel.style.display = ui.howPanel.style.display==='none'? 'block':'none'; });
+  ui.optionsBtn.addEventListener('click', ()=>{ ui.optPanel.style.display = ui.optPanel.style.display==='none'? 'block':'none'; });
+  ui.optMute?.addEventListener('change', ()=>{ state.muted = !!ui.optMute.checked; ui.mute.textContent = state.muted? 'Unmute (M)' : 'Mute (M)'; });
+})();
+</script>
+</body>
+</html>
