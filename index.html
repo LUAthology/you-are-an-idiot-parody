@@ -1,212 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>YOU ARE AN IDIOT — Arcade Parody Game</title>
-<meta name="description" content="A safe, playable parody of the classic 'You Are An Idiot' — close the bouncing windows before they replicate and survive 60 seconds to win.">
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: black;
-    overflow: hidden;
-    font-family: Arial, sans-serif;
-  }
-  canvas {
-    display: block;
-    background: black;
-  }
-  #mainMenu {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: black;
-    color: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 2;
-  }
-  #mainMenu h1 { font-size: 3rem; margin-bottom: 20px; }
-  #mainMenu button {
-    font-size: 1.5rem;
-    padding: 10px 20px;
-    cursor: pointer;
-    background: red;
-    color: white;
-    border: none;
-    border-radius: 8px;
-  }
+    body {
+        margin: 0;
+        background: black;
+        font-family: 'Segoe UI', sans-serif;
+        overflow: hidden;
+        color: white;
+    }
+    canvas {
+        display: block;
+        margin: auto;
+        background: #111;
+    }
+    #menu, #loseScreen {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+    #menu h1, #loseScreen h1 {
+        font-size: 3rem;
+        color: #ff00ff;
+        text-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
+    }
+    #menu button, #loseScreen button {
+        margin-top: 20px;
+        padding: 15px 40px;
+        font-size: 1.2rem;
+        color: white;
+        background: #ff00ff;
+        border: none;
+        cursor: pointer;
+        border-radius: 8px;
+        box-shadow: 0 0 10px #ff00ff, 0 0 20px #ff00ff;
+    }
+    #hud {
+        position: absolute;
+        top: 10px; left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 18px;
+        background: rgba(0,0,0,0.5);
+        padding: 8px 15px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px #ff00ff;
+        z-index: 5;
+    }
 </style>
 </head>
 <body>
-<div id="mainMenu">
-  <h1>YOU ARE AN IDIOT</h1>
-  <p>(Arcade Parody — Safe Game)</p>
-  <button id="startBtn">Start Game</button>
+<div id="menu">
+    <h1>YOU ARE AN IDIOT</h1>
+    <button onclick="startGame()">START</button>
 </div>
-<canvas id="gameCanvas"></canvas>
-
+<div id="hud" style="display:none;">
+    Score: <span id="score">0</span>
+</div>
+<div id="loseScreen" style="display:none;">
+    <h1>YOU ARE AN IDIOT!</h1>
+    <button onclick="restartGame()">Restart</button>
+</div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<audio id="idiotSound" src="https://www.myinstants.com/media/sounds/you-are-an-idiot.mp3" loop></audio>
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
-let keys = {};
+let player = { x: 400, y: 300, size: 15, speed: 4 };
 let bullets = [];
 let popups = [];
-let crosshair = { x: 0, y: 0 };
-let gameRunning = false;
 let score = 0;
-let player = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  size: 20,
-  speed: 5
-};
+let keys = {};
+let mouse = { x: 0, y: 0 };
+let gameRunning = false;
+let spawnTimer = 0;
 
-const popupImage = new Image();
-popupImage.src = "https://i.imgur.com/YZ2P9yB.png"; // Replace with your popup image
-
-// Play sound
-function playIdiotSound() {
-  let audio = new Audio("https://www.myinstants.com/media/sounds/you-are-an-idiot.mp3");
-  audio.play();
-}
-
-// Handle input
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
 canvas.addEventListener("mousemove", e => {
-  crosshair.x = e.clientX;
-  crosshair.y = e.clientY;
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+});
+canvas.addEventListener("click", () => {
+    if (gameRunning) {
+        const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+        bullets.push({ x: player.x, y: player.y, dx: Math.cos(angle)*6, dy: Math.sin(angle)*6, size: 5 });
+    }
 });
 
-canvas.addEventListener("click", shoot);
-document.addEventListener("keydown", e => { if (e.code === "Space") shoot(); });
+function startGame() {
+    document.getElementById("menu").style.display = "none";
+    document.getElementById("hud").style.display = "block";
+    gameRunning = true;
+    score = 0;
+    player.x = 400; player.y = 300;
+    bullets = [];
+    popups = [];
+    spawnPopup();
+    loop();
+}
 
-function shoot() {
-  bullets.push({
-    x: player.x,
-    y: player.y,
-    dx: (crosshair.x - player.x) / 20,
-    dy: (crosshair.y - player.y) / 20,
-    size: 5
-  });
+function restartGame() {
+    document.getElementById("loseScreen").style.display = "none";
+    document.getElementById("menu").style.display = "flex";
+    document.getElementById("idiotSound").pause();
+    document.getElementById("idiotSound").currentTime = 0;
 }
 
 function spawnPopup() {
-  popups.push({
-    x: Math.random() * (canvas.width - 200),
-    y: Math.random() * (canvas.height - 150),
-    w: 200,
-    h: 150,
-    dx: (Math.random() - 0.5) * 4,
-    dy: (Math.random() - 0.5) * 4
-  });
-}
-
-function update() {
-  // Move player
-  if (keys["w"] || keys["arrowup"]) player.y -= player.speed;
-  if (keys["s"] || keys["arrowdown"]) player.y += player.speed;
-  if (keys["a"] || keys["arrowleft"]) player.x -= player.speed;
-  if (keys["d"] || keys["arrowright"]) player.x += player.speed;
-
-  // Boundaries
-  player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
-  player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
-
-  // Move bullets
-  bullets.forEach((b, i) => {
-    b.x += b.dx;
-    b.y += b.dy;
-    if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-      bullets.splice(i, 1);
-    }
-  });
-
-  // Move popups
-  popups.forEach(p => {
-    p.x += p.dx;
-    p.y += p.dy;
-    if (p.x <= 0 || p.x + p.w >= canvas.width) p.dx *= -1;
-    if (p.y <= 0 || p.y + p.h >= canvas.height) p.dy *= -1;
-  });
-
-  // Bullet collision with popups
-  bullets.forEach((b, bi) => {
-    popups.forEach((p, pi) => {
-      if (b.x > p.x && b.x < p.x + p.w && b.y > p.y && b.y < p.y + p.h) {
-        popups.splice(pi, 1);
-        bullets.splice(bi, 1);
-        score++;
-        playIdiotSound();
-      }
+    popups.push({
+        x: Math.random()*750,
+        y: Math.random()*550,
+        dx: (Math.random()*2-1)*2,
+        dy: (Math.random()*2-1)*2,
+        size: 50
     });
-  });
-}
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Player
-  ctx.fillStyle = "lime";
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Bullets
-  ctx.fillStyle = "yellow";
-  bullets.forEach(b => {
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  // Popups
-  popups.forEach(p => {
-    ctx.drawImage(popupImage, p.x, p.y, p.w, p.h);
-  });
-
-  // Crosshair
-  ctx.strokeStyle = "red";
-  ctx.beginPath();
-  ctx.moveTo(crosshair.x - 10, crosshair.y);
-  ctx.lineTo(crosshair.x + 10, crosshair.y);
-  ctx.moveTo(crosshair.x, crosshair.y - 10);
-  ctx.lineTo(crosshair.x, crosshair.y + 10);
-  ctx.stroke();
-
-  // Score
-  ctx.fillStyle = "white";
-  ctx.font = "20px Arial";
-  ctx.fillText("Score: " + score, 20, 30);
 }
 
 function loop() {
-  if (!gameRunning) return;
-  update();
-  draw();
-  requestAnimationFrame(loop);
+    if (!gameRunning) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    if (keys['w']) player.y -= player.speed;
+    if (keys['s']) player.y += player.speed;
+    if (keys['a']) player.x -= player.speed;
+    if (keys['d']) player.x += player.speed;
+
+    player.x = Math.max(0, Math.min(canvas.width, player.x));
+    player.y = Math.max(0, Math.min(canvas.height, player.y));
+
+    ctx.fillStyle = "cyan";
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.size, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle = "red";
+    ctx.beginPath();
+    ctx.moveTo(mouse.x - 10, mouse.y);
+    ctx.lineTo(mouse.x + 10, mouse.y);
+    ctx.moveTo(mouse.x, mouse.y - 10);
+    ctx.lineTo(mouse.x, mouse.y + 10);
+    ctx.stroke();
+
+    bullets.forEach((b, i) => {
+        b.x += b.dx; b.y += b.dy;
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size, 0, Math.PI*2);
+        ctx.fill();
+
+        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+            bullets.splice(i,1);
+        }
+    });
+
+    popups.forEach((p, pi) => {
+        p.x += p.dx;
+        p.y += p.dy;
+        if (p.x <= 0 || p.x + p.size >= canvas.width) p.dx *= -1;
+        if (p.y <= 0 || p.y + p.size >= canvas.height) p.dy *= -1;
+
+        ctx.fillStyle = "magenta";
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.fillStyle = "white";
+        ctx.fillText("IDIOT", p.x+5, p.y+30);
+
+        if (Math.hypot(player.x - (p.x+p.size/2), player.y - (p.y+p.size/2)) < player.size + p.size/2) {
+            loseGame();
+        }
+
+        bullets.forEach((b, bi) => {
+            if (b.x > p.x && b.x < p.x+p.size && b.y > p.y && b.y < p.y+p.size) {
+                bullets.splice(bi,1);
+                popups.splice(pi,1);
+                score++;
+                document.getElementById("score").innerText = score;
+            }
+        });
+    });
+
+    spawnTimer++;
+    if (spawnTimer > 200) {
+        spawnPopup();
+        spawnTimer = 0;
+    }
+
+    requestAnimationFrame(loop);
 }
 
-document.getElementById("startBtn").addEventListener("click", () => {
-  document.getElementById("mainMenu").style.display = "none";
-  gameRunning = true;
-  score = 0;
-  player.x = canvas.width / 2;
-  player.y = canvas.height / 2;
-  popups = [];
-  bullets = [];
-  for (let i = 0; i < 3; i++) spawnPopup();
-  setInterval(spawnPopup, 3000); // spawn more over time
-  loop();
-});
+function loseGame() {
+    gameRunning = false;
+    document.getElementById("loseScreen").style.display = "flex";
+    document.getElementById("idiotSound").play();
+}
 </script>
 </body>
 </html>
